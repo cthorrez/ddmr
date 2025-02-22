@@ -7,10 +7,14 @@ from jax.scipy.optimize import minimize
 def load_and_preprocess():
     df = pl.scan_parquet('matches.parquet').with_row_index(name="row_index")
 
+    df = df.filter(
+        (pl.col('date') >= '2024-01-01')
+        & (pl.col('date') <= '2024-12-3W1')
+    )
+
     competitors_df = df.unpivot(index=[], on=["competitor_1", "competitor_2"])\
         .select("value").unique("value").sort("value").rename({"value": "competitor"})
 
-   
     matches_df = (
         df.select([
             pl.col('competitor_1').cast(pl.Utf8).alias('comp1'),
@@ -58,7 +62,7 @@ loss_and_grad = jax.value_and_grad(
 
 
 def bt(matches, outcomes, n_players, reg=1.0):
-    initial_ratings = jnp.zeros(n_players)
+    initial_ratings = jnp.ones(n_players)
     result = minimize(
         partial(loss_fn, matches=matches, outcomes=outcomes, reg=reg),
         initial_ratings,
@@ -69,7 +73,7 @@ def bt(matches, outcomes, n_players, reg=1.0):
 
 def main():
     df, matches, outcomes, n_players = load_and_preprocess()
-    ratings = bt(matches, outcomes, n_players)
+    ratings = bt(matches, outcomes, n_players, reg=10.0)
     print(ratings)
 
 
